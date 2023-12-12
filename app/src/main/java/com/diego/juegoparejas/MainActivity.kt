@@ -1,5 +1,7 @@
 package com.diego.juegoparejas
 
+import android.app.AlertDialog
+import android.content.DialogInterface
 import android.content.Intent
 import android.content.res.Configuration
 import android.media.MediaPlayer
@@ -12,10 +14,13 @@ import android.widget.Button
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.core.view.get
 import com.diego.juegoparejas.databinding.ActivityMainBinding
 import com.diego.juegoparejas.databinding.FichasBinding
+import java.lang.reflect.Array
+import kotlin.system.exitProcess
 
 class MainActivity : AppCompatActivity() {
     /*
@@ -51,8 +56,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var imagenesClickadas: ArrayList<ImageView>
     private lateinit var btnReset:Button
     private lateinit var btnMusica: ImageButton
+    private lateinit var txtJ1: TextView
+    private lateinit var txtJ2: TextView
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var bgSong:MediaPlayer
+
+    //defino que empiece el j1
+    private var turnoJ1:Boolean = true
+    private lateinit var puntuaciones: ArrayList<Int>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,6 +84,14 @@ class MainActivity : AppCompatActivity() {
         btnReset.setOnClickListener{resetear()}
         btnMusica = findViewById(R.id.btnSonido)
         btnMusica.setOnClickListener{gestionarMusicaFondo()}
+        txtJ1 = findViewById(R.id.j1txt)
+        txtJ2 = findViewById(R.id.j2txt)
+
+        puntuaciones = arrayListOf(0,0)
+
+        txtJ1.text="J1: ${puntuaciones[0].toString()}"
+        txtJ2.text="J2: ${puntuaciones[1].toString()}"
+
 
         gestionarMusicaFondo()
 
@@ -107,8 +126,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    fun handleClick(image:ImageView){
+    private fun handleClick(image:ImageView){
         image.setImageResource(image.tag as Int)
+        // lo pongo a false para que al clickar otra vez sobre la misma imagen no cuente
+        image.isEnabled = false
         handler.postDelayed({
             imagenesClickadas.add(image)
             if (imagenesClickadas.size == 2){
@@ -119,35 +140,75 @@ class MainActivity : AppCompatActivity() {
                     imagenesClickadas[0].tag="encontrada"
                     imagenesClickadas[1].tag="encontrada"
                     sonido("good_ending")
+                    if (turnoJ1){
+                        puntuaciones[0]++
+                        txtJ1.text="J1: ${puntuaciones[0].toString()}"
+                    }else{
+                        puntuaciones[1]++
+                        txtJ2.text="J2: ${puntuaciones[1].toString()}"
+                    }
                 }else{
                     imagenesClickadas[0].setImageResource(R.drawable.oculto)
                     imagenesClickadas[1].setImageResource(R.drawable.oculto)
+                    imagenesClickadas[0].isEnabled = true
+                    imagenesClickadas[1].isEnabled = true
                     sonido("bad_ending")
                 }
                 imagenesClickadas.clear()
+                turnoJ1 = !turnoJ1
             }
             if (hayVictoria()){
-                Toast.makeText(this, "HAS GANADO", Toast.LENGTH_SHORT).show()
+                sonido("good_ending")
+                sonido("good_ending")
+                sonido("good_ending")
+                val mensajeFinal:String
+                val puntuacionJ1:Int = txtJ1.text[txtJ1.text.length-1].digitToInt()
+                val puntuacionJ2:Int = txtJ2.text[txtJ2.text.length-1].digitToInt()
+                mensajeFinal = if(puntuacionJ1>puntuacionJ2){
+                    "Ha ganado el J1 con $puntuacionJ1 puntos"
+                }else if(puntuacionJ1 == puntuacionJ2){
+                    "EMPATE"
+                }else{
+                    "Ha ganado el J2 con $puntuacionJ2 puntos"
+                }
+                //después de que suene el sonido de victoria sale una ventana emergente
+                val builder = AlertDialog.Builder(this)
+                // mostramos el resultado final de los dos jugadores
+                builder.setMessage(mensajeFinal)
+                    .setPositiveButton("Reiniciar") { dialog, id ->
+                        resetear()
+                    }
+                    .setNegativeButton("Salir") { dialog, id ->
+                        exitProcess(0)
+                    }
+                builder.create().show()
             }
         },300)
     }
 
     private fun sonido(soundToPlay: String) {
-        val resId:Int = resources.getIdentifier(soundToPlay,"raw",packageName)
-        val sound:MediaPlayer = MediaPlayer.create(this,resId)
+        //obtengo el id del recurso que he pasado por parámetro
+        val idResource:Int = resources.getIdentifier(soundToPlay,"raw",packageName)
+        //hago sonarlo pasando el id del recurso
+        val sound:MediaPlayer = MediaPlayer.create(this,idResource)
         sound.setVolume(0.5F,0.5F)
         sound.start()
+        //hago que cuando haya terminado de sonar, pare y libere recursos
         sound.setOnCompletionListener {
             it.stop()
             it.release()
         }
     }
 
-    fun areTheSameImage(listaImagenes: ArrayList<ImageView>): Boolean{
+    /**
+     * funcion para saber si dos imagenes son la misma instancia,
+     * para que no se pueda dar como valido que se haga click sobre la misma imagen
+     */
+    private fun areTheSameImage(listaImagenes: ArrayList<ImageView>): Boolean{
         return listaImagenes[0].equals(listaImagenes[1])
     }
 
-    fun hayVictoria():Boolean{
+    private fun hayVictoria():Boolean{
         var victoria:Boolean = true
         for (i in 0 until contenedorImagenes.childCount){
             val linearLayout:LinearLayout = contenedorImagenes[i] as LinearLayout
@@ -178,5 +239,8 @@ class MainActivity : AppCompatActivity() {
                 currentImage.isEnabled = true
             }
         }
+        puntuaciones = arrayListOf(0,0)
+        txtJ1.text="J1: ${puntuaciones[0].toString()}"
+        txtJ2.text="J2: ${puntuaciones[1].toString()}"
     }
 }
